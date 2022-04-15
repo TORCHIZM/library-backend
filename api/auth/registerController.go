@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -21,7 +22,7 @@ func Register(ctx *fiber.Ctx) error {
 	user := &auth.RegisterParams{}
 
 	if err := ctx.BodyParser(user); err != nil {
-		return helpers.ServerResponse(ctx, err.Error(), err)
+		return helpers.ServerResponse(ctx, err.Error(), err.Error())
 	}
 
 	if err := helpers.ValidateStruct(user); err != nil {
@@ -39,20 +40,20 @@ func Register(ctx *fiber.Ctx) error {
 	var userRecord bson.M
 
 	if err := userCollection.FindOne(ctx.Context(), filter).Decode(&userRecord); err == nil {
-		return helpers.ServerResponse(ctx, "User already exists", nil)
+		return helpers.ServerResponse(ctx, "Error", "User already exists")
 	}
 
 	hashedPassword, passwordErr := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 
 	if passwordErr != nil {
-		return helpers.ServerResponse(ctx, "Ann error has been occurred", nil)
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
 	roleCollection := config.Instance.Database.Collection("role")
 	role := &models.Role{}
 
 	if err := roleCollection.FindOne(ctx.Context(), bson.M{"rolename": "user"}).Decode(&role); err != nil {
-		return helpers.ServerResponse(ctx, "Server is not ready yet", nil)
+		return helpers.ServerResponse(ctx, "Error", "Server is not ready yet")
 	}
 
 	insertUser := &models.User{
@@ -70,7 +71,7 @@ func Register(ctx *fiber.Ctx) error {
 	}
 
 	if result, errs := userCollection.InsertOne(ctx.Context(), insertUser); errs != nil {
-		return helpers.ServerResponse(ctx, errs.Error(), errs.Error())
+		return helpers.ServerResponse(ctx, "Error", errs.Error())
 	} else {
 		filter := bson.D{{Key: "_id", Value: result.InsertedID}}
 		createdRecord := userCollection.FindOne(ctx.Context(), filter)
@@ -78,7 +79,7 @@ func Register(ctx *fiber.Ctx) error {
 		createdRecord.Decode(createduser)
 
 		rand.Seed(time.Now().UnixNano())
-		confirmationNumber := rand.Intn((999999 - 100000) + 100000)
+		confirmationNumber := rand.Intn((999999 - 100000)) + 100000
 
 		confirmationCollection := config.Instance.Database.Collection("confirmations")
 		confirmation := &auth.MailConfirmation{}
@@ -88,7 +89,7 @@ func Register(ctx *fiber.Ctx) error {
 		confirmation.UpdatedAt = utils.MakeTimestamp()
 
 		if _, errs := confirmationCollection.InsertOne(ctx.Context(), confirmation); errs != nil {
-			return helpers.ServerResponse(ctx, "Error has been occurred", nil)
+			return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 		}
 
 		var jwtKey = []byte(c.Config("SECRET_KEY"))
@@ -108,7 +109,7 @@ func Register(ctx *fiber.Ctx) error {
 		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtKey)
 
 		if err != nil {
-			return helpers.CrudResponse(ctx, "Sid token couldn't signed", nil)
+			return helpers.ServerResponse(ctx, "Sid token couldn't signed", nil)
 		}
 
 		session := &models.Session{
@@ -120,20 +121,16 @@ func Register(ctx *fiber.Ctx) error {
 		}
 
 		if _, err := sessionCollection.InsertOne(ctx.Context(), session); err != nil {
-			return helpers.BadResponse(ctx, "An error has been occurred", nil)
+			return helpers.BadResponse(ctx, "An error has been occurred")
 		}
 
-		type responseType struct {
-			User    *models.User
-			Session *models.Session
-		}
-
-		response := &responseType{
+		response := &auth.AuthResponse{
 			User:    createduser,
 			Session: session,
 		}
 
 		helpers.SendMail(user.Email, confirmationNumber)
+		fmt.Println("sent")
 		return helpers.CrudResponse(ctx, "Create", response)
 	}
 }
@@ -141,8 +138,10 @@ func Register(ctx *fiber.Ctx) error {
 func ActivateAccount(ctx *fiber.Ctx) error {
 	params := &auth.ActivateParams{}
 
+	fmt.Println(string(ctx.Body()))
+
 	if errors := ctx.BodyParser(params); errors != nil {
-		return helpers.ServerResponse(ctx, errors.Error(), errors)
+		return helpers.ServerResponse(ctx, "Error", errors.Error())
 	}
 	if errors := helpers.ValidateStruct(params); errors != nil {
 		return helpers.ServerResponse(ctx, "Failed", errors)
@@ -161,16 +160,16 @@ func ActivateAccount(ctx *fiber.Ctx) error {
 	confirmationFilter := bson.D{{Key: "User", Value: user.ID}}
 
 	if err := confirmationCollection.FindOne(ctx.Context(), confirmationFilter).Decode(&confirmation); err != nil {
-		return helpers.ServerResponse(ctx, "Confirmation not found or wrong code", nil)
+		return helpers.NotFoundResponse(ctx, "Confirmation not found")
 	}
 
 	if confirmation.Code != params.Code {
-		return helpers.BadResponse(ctx, "Wrong code", nil)
+		return helpers.BadResponse(ctx, "Wrong code")
 	}
 
 	created := confirmation.CreatedAt.Add(time.Minute * 60)
 	if created.Sub(utils.MakeTimestamp()) < 0 {
-		return helpers.MsgResponse(ctx, "Code expired", nil)
+		return helpers.BadResponse(ctx, "Code expired")
 	}
 
 	user.Active = true
@@ -179,21 +178,21 @@ func ActivateAccount(ctx *fiber.Ctx) error {
 	if _, err := userCollection.UpdateOne(ctx.Context(), userFilter, bson.M{
 		"$set": user,
 	}); err != nil {
-		return helpers.ServerResponse(ctx, "An error has been occurred", err.Error())
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
 	if _, err := confirmationCollection.DeleteOne(ctx.Context(), confirmationFilter); err != nil {
-		return helpers.ServerResponse(ctx, "An error has been occurred", err.Error())
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
-	return helpers.MsgResponse(ctx, "Account activated successfully", nil)
+	return helpers.MsgResponse(ctx, "Account activated successfully")
 }
 
 func ResendMail(ctx *fiber.Ctx) error {
 	params := &auth.ResendParams{}
 
 	if errors := ctx.BodyParser(params); errors != nil {
-		return helpers.ServerResponse(ctx, errors.Error(), errors)
+		return helpers.ServerResponse(ctx, "Error", errors.Error())
 	}
 
 	if err := helpers.ValidateStruct(params); err != nil {
@@ -218,11 +217,11 @@ func ResendMail(ctx *fiber.Ctx) error {
 
 	created := confirmation.CreatedAt.Add(time.Second * 60)
 	if created.Sub(utils.MakeTimestamp()) > 0 {
-		return helpers.MsgResponse(ctx, "You have to wait", created.Sub(utils.MakeTimestamp()))
+		return helpers.BadResponse(ctx, "You have to wait 1 minute")
 	}
 
 	rand.Seed(time.Now().UnixNano())
-	confirmationNumber := rand.Intn((999999 - 100000) + 100000)
+	confirmationNumber := rand.Intn((999999 - 100000)) + 100000
 
 	if _, err := confirmationCollection.UpdateOne(ctx.Context(), confirmationFilter, bson.M{
 		"$set": &auth.MailConfirmation{
@@ -232,8 +231,9 @@ func ResendMail(ctx *fiber.Ctx) error {
 			UpdatedAt: utils.MakeTimestamp(),
 		},
 	}); err != nil {
-		return helpers.ServerResponse(ctx, "An error has been occurred", err.Error())
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
-	return helpers.MsgResponse(ctx, "Code sent", nil)
+	helpers.SendMail(user.Email, confirmationNumber)
+	return helpers.MsgResponse(ctx, "Code sent")
 }

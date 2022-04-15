@@ -19,7 +19,7 @@ func IsAuth(ctx *fiber.Ctx) error {
 	headers := ctx.GetReqHeaders()
 
 	if len(headers["Authorization"]) < 7 {
-		return helpers.BadResponse(ctx, "No valid token provided", nil)
+		return helpers.BadResponse(ctx, "No valid token provided")
 	}
 
 	bearerHeader := &BearerHeader{
@@ -28,7 +28,7 @@ func IsAuth(ctx *fiber.Ctx) error {
 	}
 
 	if err := helpers.ValidateStruct(bearerHeader); err != nil {
-		return helpers.BadResponse(ctx, "Failed", err)
+		return helpers.BadResponse(ctx, "Failed")
 	}
 
 	sessionCollection := config.Instance.Database.Collection("session")
@@ -39,7 +39,7 @@ func IsAuth(ctx *fiber.Ctx) error {
 	session := &models.Session{}
 
 	if err := sessionCollection.FindOne(ctx.Context(), sessionFilter).Decode(&session); err != nil {
-		return helpers.ServerResponse(ctx, "Identification failed", nil)
+		return helpers.ServerResponse(ctx, "Error", "Identification failed")
 	}
 
 	userCollection := config.Instance.Database.Collection("user")
@@ -47,7 +47,7 @@ func IsAuth(ctx *fiber.Ctx) error {
 	user := &models.User{}
 
 	if err := userCollection.FindOne(ctx.Context(), userFilter).Decode(&user); err != nil {
-		return helpers.BadResponse(ctx, "User not found", nil)
+		return helpers.NotFoundResponse(ctx, "User not found")
 	}
 
 	ctx.Locals("session", session)

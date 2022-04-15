@@ -7,7 +7,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// SetupRoutes Employe
 func UserRoutes(ctx fiber.Router) {
 	route := ctx.Group("/user")
 	route.Post("/login", auth.Login)

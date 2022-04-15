@@ -6,5 +6,5 @@ import (
 
 type ActivateParams struct {
 	User primitive.ObjectID `json:"user,omitempty" bson:"user,omitempty" validate:"required"`
-	Code int                `json:"code" bson:"code" validate:"required,min=100000,max=999999,number"`
+	Code int                `json:"code,omitempty" bson:"code,omitempty" validate:"required,min=100000,max=999999,number"`
 }

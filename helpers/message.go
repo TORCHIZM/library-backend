@@ -12,11 +12,11 @@ type resMessage struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
-func MsgResponse(c *fiber.Ctx, msg string, data interface{}) error {
+func MsgResponse(c *fiber.Ctx, msg string) error {
 	resPonse := &resMessage{
 		Code:    fiber.StatusOK,
-		Message: msg,
-		Data:    data,
+		Message: "Message",
+		Data:    msg,
 	}
 	return c.Status(fiber.StatusOK).JSON(resPonse)
 }
@@ -30,11 +30,11 @@ func CrudResponse(c *fiber.Ctx, msg string, data interface{}) error {
 	return c.Status(fiber.StatusOK).JSON(resPonse)
 }
 
-func BadResponse(c *fiber.Ctx, msg string, data interface{}) error {
+func BadResponse(c *fiber.Ctx, msg string) error {
 	resPonse := &resMessage{
 		Code:    fiber.StatusBadRequest,
-		Message: msg,
-		Data:    data,
+		Message: "Bad Request",
+		Data:    msg,
 	}
 	return c.Status(fiber.StatusBadRequest).JSON(resPonse)
 }

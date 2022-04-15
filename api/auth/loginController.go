@@ -37,11 +37,11 @@ func Login(ctx *fiber.Ctx) error {
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(params.Password)); err != nil {
-		return helpers.NotFoundResponse(ctx, "Credentials not matching our records")
+		return helpers.BadResponse(ctx, "Credentials not matching our records")
 	}
 
 	if !user.Active {
-		return helpers.BadResponse(ctx, "Your account is not verified yet", nil)
+		return helpers.BadResponse(ctx, "Your account is not verified yet")
 	}
 
 	session := &models.Session{}
@@ -64,7 +64,7 @@ func Login(ctx *fiber.Ctx) error {
 	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(jwtKey)
 
 	if err != nil {
-		return helpers.CrudResponse(ctx, "Sid token couldn't signed", nil)
+		return helpers.ServerResponse(ctx, "Error", "Sid token couldn't signed")
 	}
 
 	if err := sessionCollection.FindOne(ctx.Context(), bson.D{
@@ -80,13 +80,16 @@ func Login(ctx *fiber.Ctx) error {
 		}
 
 		if _, err := sessionCollection.InsertOne(ctx.Context(), session); err != nil {
-			return helpers.BadResponse(ctx, "An error has been occurred", nil)
+			return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 		}
-
-		return helpers.CrudResponse(ctx, "Create", session)
 	}
 
-	return helpers.CrudResponse(ctx, "Create", session)
+	response := &auth.AuthResponse{
+		User:    user,
+		Session: session,
+	}
+
+	return helpers.CrudResponse(ctx, "Create", response)
 }
 
 func LogOut(ctx *fiber.Ctx) error {
@@ -95,8 +98,8 @@ func LogOut(ctx *fiber.Ctx) error {
 	sessionFilter := bson.D{{Key: "_id", Value: session.ID}}
 
 	if _, err := sessionCollection.DeleteOne(ctx.Context(), sessionFilter); err != nil {
-		return helpers.ServerResponse(ctx, "An error has been occurred", nil)
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
-	return helpers.MsgResponse(ctx, "Logged out", nil)
+	return helpers.MsgResponse(ctx, "Logged out")
 }
