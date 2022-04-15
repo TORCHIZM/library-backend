@@ -84,3 +84,39 @@ func SendConfirmationCode(receiver string, code int) {
 		log.Fatal(err)
 	}
 }
+
+func SendForgotPassword(receiver string, code int) {
+	server := mail.NewSMTPClient()
+	server.Host = config.Config("MAIL_HOST")
+	server.Port, _ = strconv.Atoi(config.Config("MAIL_PORT"))
+	server.Username = config.Config("MAIL_ADDR")
+	server.Password = config.Config("MAIL_PASS")
+
+	server.Encryption = mail.EncryptionTLS
+
+	smtpClient, err := server.Connect()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	email := mail.NewMSG()
+	email.SetFrom("Kütüphane Uygulaması <dpulibraryapp@dpu.com>")
+	email.AddTo(receiver)
+	email.SetSubject("Kütüphane Şifre Yenileme Kodu")
+
+	absPath, _ := filepath.Abs("helpers/templates/forgot-password.html")
+	htmlBody, err := os.ReadFile(absPath)
+	body := strings.Replace(string(htmlBody), "$code", fmt.Sprintf("%d", code), -1)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	email.SetBody(mail.TextHTML, body)
+
+	err = email.Send(smtpClient)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+}

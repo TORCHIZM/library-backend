@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -130,15 +129,12 @@ func Register(ctx *fiber.Ctx) error {
 		}
 
 		helpers.SendMail(user.Email, confirmationNumber)
-		fmt.Println("sent")
 		return helpers.CrudResponse(ctx, "Create", response)
 	}
 }
 
 func ActivateAccount(ctx *fiber.Ctx) error {
 	params := &auth.ActivateParams{}
-
-	fmt.Println(string(ctx.Body()))
 
 	if errors := ctx.BodyParser(params); errors != nil {
 		return helpers.ServerResponse(ctx, "Error", errors.Error())
@@ -157,7 +153,7 @@ func ActivateAccount(ctx *fiber.Ctx) error {
 
 	confirmationCollection := config.Instance.Database.Collection("confirmations")
 	confirmation := &auth.MailConfirmation{}
-	confirmationFilter := bson.D{{Key: "User", Value: user.ID}}
+	confirmationFilter := bson.D{{Key: "user", Value: user.ID}}
 
 	if err := confirmationCollection.FindOne(ctx.Context(), confirmationFilter).Decode(&confirmation); err != nil {
 		return helpers.NotFoundResponse(ctx, "Confirmation not found")
@@ -209,7 +205,7 @@ func ResendMail(ctx *fiber.Ctx) error {
 
 	confirmationCollection := config.Instance.Database.Collection("confirmations")
 	confirmation := &auth.MailConfirmation{}
-	confirmationFilter := bson.D{{Key: "User", Value: user.ID}}
+	confirmationFilter := bson.D{{Key: "user", Value: user.ID}}
 
 	if err := confirmationCollection.FindOne(ctx.Context(), confirmationFilter).Decode(&confirmation); err != nil {
 		return helpers.NotFoundResponse(ctx, "Confirmation not found")

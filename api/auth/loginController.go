@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"math/rand"
 	"time"
 	"torchizm/library-backend/config"
 	"torchizm/library-backend/helpers"
@@ -102,4 +103,121 @@ func LogOut(ctx *fiber.Ctx) error {
 	}
 
 	return helpers.MsgResponse(ctx, "Logged out")
+}
+
+func ForgotPassword(ctx *fiber.Ctx) error {
+	params := &auth.ForgotPasswordParams{}
+
+	if errors := ctx.BodyParser(params); errors != nil {
+		return helpers.ServerResponse(ctx, errors.Error(), errors)
+	}
+
+	if err := helpers.ValidateStruct(params); err != nil {
+		return helpers.ServerResponse(ctx, "Failed", err)
+	}
+
+	user := &models.User{}
+	userCollection := config.Instance.Database.Collection("user")
+	userFilter := bson.D{{Key: "email", Value: params.Email}}
+
+	if err := userCollection.FindOne(ctx.Context(), userFilter).Decode(user); err != nil {
+		return helpers.NotFoundResponse(ctx, "User not found")
+	}
+
+	forgotPasswordCollection := config.Instance.Database.Collection("confirmations")
+	forgotPassword := &auth.ForgotPassword{}
+	forgotPasswordFilter := bson.D{{Key: "user", Value: user.ID}}
+
+	rand.Seed(time.Now().UnixNano())
+	confirmationNumber := rand.Intn((999999 - 100000)) + 100000
+
+	if err := forgotPasswordCollection.FindOne(ctx.Context(), forgotPasswordFilter).Decode(&forgotPassword); err != nil {
+		if _, err := forgotPasswordCollection.InsertOne(ctx.Context(), &auth.ForgotPassword{
+			Email:     user.Email,
+			Code:      confirmationNumber,
+			CreatedAt: utils.MakeTimestamp(),
+			UpdatedAt: utils.MakeTimestamp(),
+		}); err != nil {
+			return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
+		}
+
+		helpers.SendForgotPassword(user.Email, confirmationNumber)
+		return helpers.MsgResponse(ctx, "Code sent")
+	}
+
+	created := forgotPassword.CreatedAt.Add(time.Minute * 5)
+	if created.Sub(utils.MakeTimestamp()) > 0 {
+		return helpers.BadResponse(ctx, "You have to wait 5 minute")
+	}
+
+	if _, err := forgotPasswordCollection.UpdateOne(ctx.Context(), forgotPasswordFilter, bson.M{
+		"$set": &auth.MailConfirmation{
+			User:      user.ID,
+			Code:      confirmationNumber,
+			CreatedAt: utils.MakeTimestamp(),
+			UpdatedAt: utils.MakeTimestamp(),
+		},
+	}); err != nil {
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
+	}
+
+	helpers.SendForgotPassword(user.Email, confirmationNumber)
+	return helpers.MsgResponse(ctx, "Code sent")
+}
+
+func ForgotPasswordConfirm(ctx *fiber.Ctx) error {
+	params := &auth.ForgotPasswordConfirmParams{}
+
+	if errors := ctx.BodyParser(params); errors != nil {
+		return helpers.ServerResponse(ctx, "Error", errors.Error())
+	}
+
+	if errors := helpers.ValidateStruct(params); errors != nil {
+		return helpers.ServerResponse(ctx, "Failed", errors)
+	}
+
+	confirmationCollection := config.Instance.Database.Collection("confirmations")
+	confirmation := &auth.MailConfirmation{}
+	confirmationFilter := bson.D{{Key: "code", Value: params.Code}}
+
+	if err := confirmationCollection.FindOne(ctx.Context(), confirmationFilter).Decode(&confirmation); err != nil {
+		return helpers.NotFoundResponse(ctx, "Confirmation not found")
+	}
+
+	if confirmation.Code != params.Code {
+		return helpers.BadResponse(ctx, "Wrong code")
+	}
+
+	created := confirmation.CreatedAt.Add(time.Minute * 60)
+	if created.Sub(utils.MakeTimestamp()) < 0 {
+		return helpers.BadResponse(ctx, "Code expired")
+	}
+
+	userCollection := config.Instance.Database.Collection("user")
+	userFilter := bson.D{{Key: "_id", Value: confirmation.User}}
+	user := &models.User{}
+
+	if err := userCollection.FindOne(ctx.Context(), userFilter).Decode(&user); err != nil {
+		return helpers.NotFoundResponse(ctx, "User not found")
+	}
+
+	hashedPassword, passwordErr := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+
+	if passwordErr != nil {
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
+	}
+
+	user.Password = string(hashedPassword)
+
+	if _, err := userCollection.UpdateOne(ctx.Context(), userFilter, bson.M{
+		"$set": user,
+	}); err != nil {
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
+	}
+
+	if _, err := confirmationCollection.DeleteOne(ctx.Context(), confirmationFilter); err != nil {
+		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
+	}
+
+	return helpers.MsgResponse(ctx, "Password changed")
 }
