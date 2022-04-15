@@ -80,7 +80,7 @@ func Register(ctx *fiber.Ctx) error {
 		rand.Seed(time.Now().UnixNano())
 		confirmationNumber := rand.Intn((999999 - 100000)) + 100000
 
-		confirmationCollection := config.Instance.Database.Collection("confirmations")
+		confirmationCollection := config.Instance.Database.Collection("mailconfirmation")
 		confirmation := &auth.MailConfirmation{}
 		confirmation.User = createduser.ID
 		confirmation.Code = confirmationNumber
@@ -151,7 +151,7 @@ func ActivateAccount(ctx *fiber.Ctx) error {
 		return helpers.NotFoundResponse(ctx, "User not found")
 	}
 
-	confirmationCollection := config.Instance.Database.Collection("confirmations")
+	confirmationCollection := config.Instance.Database.Collection("mailconfirmation")
 	confirmation := &auth.MailConfirmation{}
 	confirmationFilter := bson.D{{Key: "user", Value: user.ID}}
 
@@ -203,7 +203,7 @@ func ResendMail(ctx *fiber.Ctx) error {
 		return helpers.NotFoundResponse(ctx, "User not found")
 	}
 
-	confirmationCollection := config.Instance.Database.Collection("confirmations")
+	confirmationCollection := config.Instance.Database.Collection("mailconfirmation")
 	confirmation := &auth.MailConfirmation{}
 	confirmationFilter := bson.D{{Key: "user", Value: user.ID}}
 

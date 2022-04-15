@@ -8,8 +8,8 @@ import (
 
 type ForgotPassword struct {
 	ID        primitive.ObjectID `json:"_id,omitempty" bson:"_id,omitempty"`
-	Email     string             `json:"Email" validate:"required" bson:"Email"`
-	Code      int                `json:"Code" validate:"required" bson:"Code"`
+	Email     string             `json:"email" bson:"email" validate:"required"`
+	Code      int                `json:"code"  bson:"code"  validate:"required"`
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt"`
 }

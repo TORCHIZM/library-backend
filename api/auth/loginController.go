@@ -124,9 +124,9 @@ func ForgotPassword(ctx *fiber.Ctx) error {
 		return helpers.NotFoundResponse(ctx, "User not found")
 	}
 
-	forgotPasswordCollection := config.Instance.Database.Collection("confirmations")
+	forgotPasswordCollection := config.Instance.Database.Collection("passwordconfirmations")
 	forgotPassword := &auth.ForgotPassword{}
-	forgotPasswordFilter := bson.D{{Key: "user", Value: user.ID}}
+	forgotPasswordFilter := bson.D{{Key: "email", Value: user.Email}}
 
 	rand.Seed(time.Now().UnixNano())
 	confirmationNumber := rand.Intn((999999 - 100000)) + 100000
@@ -145,17 +145,17 @@ func ForgotPassword(ctx *fiber.Ctx) error {
 		return helpers.MsgResponse(ctx, "Code sent")
 	}
 
-	created := forgotPassword.CreatedAt.Add(time.Minute * 5)
-	if created.Sub(utils.MakeTimestamp()) > 0 {
+	updated := forgotPassword.UpdatedAt.Add(time.Minute * 5)
+	if updated.Sub(utils.MakeTimestamp()) > 0 {
 		return helpers.BadResponse(ctx, "You have to wait 5 minute")
 	}
 
 	if _, err := forgotPasswordCollection.UpdateOne(ctx.Context(), forgotPasswordFilter, bson.M{
-		"$set": &auth.MailConfirmation{
-			User:      user.ID,
+		"$set": &auth.ForgotPassword{
+			Email:     user.Email,
 			Code:      confirmationNumber,
-			CreatedAt: utils.MakeTimestamp(),
 			UpdatedAt: utils.MakeTimestamp(),
+			CreatedAt: utils.MakeTimestamp(),
 		},
 	}); err != nil {
 		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
@@ -176,32 +176,32 @@ func ForgotPasswordConfirm(ctx *fiber.Ctx) error {
 		return helpers.ServerResponse(ctx, "Failed", errors)
 	}
 
-	confirmationCollection := config.Instance.Database.Collection("confirmations")
-	confirmation := &auth.MailConfirmation{}
-	confirmationFilter := bson.D{{Key: "code", Value: params.Code}}
+	forgotPasswordCollection := config.Instance.Database.Collection("passwordconfirmations")
+	forgotPassword := &auth.ForgotPassword{}
+	forgotPasswordFilter := bson.D{{Key: "code", Value: params.Code}}
 
-	if err := confirmationCollection.FindOne(ctx.Context(), confirmationFilter).Decode(&confirmation); err != nil {
+	if err := forgotPasswordCollection.FindOne(ctx.Context(), forgotPasswordFilter).Decode(&forgotPassword); err != nil {
 		return helpers.NotFoundResponse(ctx, "Confirmation not found")
 	}
 
-	if confirmation.Code != params.Code {
+	if forgotPassword.Code != params.Code {
 		return helpers.BadResponse(ctx, "Wrong code")
 	}
 
-	created := confirmation.CreatedAt.Add(time.Minute * 60)
-	if created.Sub(utils.MakeTimestamp()) < 0 {
+	updated := forgotPassword.UpdatedAt.Add(time.Minute * 60)
+	if updated.Sub(utils.MakeTimestamp()) < 0 {
 		return helpers.BadResponse(ctx, "Code expired")
 	}
 
 	userCollection := config.Instance.Database.Collection("user")
-	userFilter := bson.D{{Key: "_id", Value: confirmation.User}}
+	userFilter := bson.D{{Key: "email", Value: forgotPassword.Email}}
 	user := &models.User{}
 
 	if err := userCollection.FindOne(ctx.Context(), userFilter).Decode(&user); err != nil {
 		return helpers.NotFoundResponse(ctx, "User not found")
 	}
 
-	hashedPassword, passwordErr := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	hashedPassword, passwordErr := bcrypt.GenerateFromPassword([]byte(params.Password), bcrypt.DefaultCost)
 
 	if passwordErr != nil {
 		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
@@ -215,7 +215,7 @@ func ForgotPasswordConfirm(ctx *fiber.Ctx) error {
 		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
-	if _, err := confirmationCollection.DeleteOne(ctx.Context(), confirmationFilter); err != nil {
+	if _, err := forgotPasswordCollection.DeleteOne(ctx.Context(), forgotPasswordFilter); err != nil {
 		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
