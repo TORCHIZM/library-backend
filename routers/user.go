@@ -14,4 +14,6 @@ func UserRoutes(ctx fiber.Router) {
 	route.Post("/resend-confirmation", auth.ResendMail)
 	route.Post("/activate", auth.ActivateAccount)
 	route.Post("/logout", middlewares.IsAuth, auth.LogOut)
+	route.Post("/forgot-password", auth.ForgotPassword)
+	route.Post("/forgot-password-confirm", auth.ForgotPasswordConfirm)
 }
