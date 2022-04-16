@@ -207,6 +207,10 @@ func ForgotPasswordConfirm(ctx *fiber.Ctx) error {
 		return helpers.ServerResponse(ctx, "Error", "An error has been occurred")
 	}
 
+	if string(hashedPassword) == user.Password {
+		return helpers.ServerResponse(ctx, "Error", "Your password cannot be the same as the old password")
+	}
+
 	user.Password = string(hashedPassword)
 
 	if _, err := userCollection.UpdateOne(ctx.Context(), userFilter, bson.M{
