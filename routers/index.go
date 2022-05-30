@@ -13,4 +13,6 @@ func SetupRoutes(app *fiber.App) {
 
 	apiRoutes.Get("/", api.Index)
 	UserRoutes(apiRoutes)
+	BookRoutes(apiRoutes)
+	FeedRoutes(apiRoutes)
 }

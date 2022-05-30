@@ -49,6 +49,16 @@ func RegisterCustomValidations() {
 		return ISO8601DateRegex.MatchString(fl.Field().String())
 	})
 
+	validate.RegisterValidation("commentType", func(fl validator.FieldLevel) bool {
+		var regex = regexp.MustCompile("post|quotation")
+		return regex.MatchString(fl.Field().String())
+	})
+
+	validate.RegisterValidation("userBookStatus", func(fl validator.FieldLevel) bool {
+		var regex = regexp.MustCompile("reading|finished|overtime")
+		return regex.MatchString(fl.Field().String())
+	})
+
 	validate.RegisterValidation("password", func(fl validator.FieldLevel) bool {
 		var number, upper, special bool = false, false, false
 

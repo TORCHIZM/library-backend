@@ -120,7 +120,7 @@ func ForgotPassword(ctx *fiber.Ctx) error {
 	userCollection := config.Instance.Database.Collection("user")
 	userFilter := bson.D{{Key: "email", Value: params.Email}}
 
-	if err := userCollection.FindOne(ctx.Context(), userFilter).Decode(user); err != nil {
+	if err := userCollection.FindOne(ctx.Context(), userFilter).Decode(&user); err != nil {
 		return helpers.NotFoundResponse(ctx, "User not found")
 	}
 
